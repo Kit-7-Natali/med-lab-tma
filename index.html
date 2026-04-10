@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLab Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .price { font-weight: bold; color: #0088cc; }
+        button { background: #0088cc; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>🏥 Оберіть аналізи</h2>
+        <p>Натисніть на кнопку, щоб додати у замовлення</p>
+    </div>
+
+    <div class="card">
+        <div>
+            <strong>Загальний аналіз крові</strong><br>
+            <small>Термін: 1 день</small>
+        </div>
+        <div class="price">250 грн</div>
+        <button onclick="sendAnalysis('Загальний аналіз крові', 250)">Обрати</button>
+    </div>
+
+    <div class="card">
+        <div>
+            <strong>Біохімія (6 показників)</strong><br>
+            <small>Термін: 1-2 дні</small>
+        </div>
+        <div class="price">480 грн</div>
+        <button onclick="sendAnalysis('Біохімія', 480)">Обрати</button>
+    </div>
+
+    <script>
+        let tg = window.Telegram.WebApp;
+        tg.expand(); // Розгортаємо вікно на максимум
+
+        function sendAnalysis(name, price) {
+            // Ця функція відправляє дані назад у бот
+            const data = JSON.stringify({
+                analysis: name,
+                price: price
+            });
+            tg.sendData(data); // Відправляємо рядок боту
+            tg.close(); // Закриваємо додаток
+        }
+    </script>
+</body>
+</html>

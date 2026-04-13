@@ -196,7 +196,7 @@
         const name = document.getElementById('p_name').value;
         const dob = document.getElementById('p_dob').value;
         const phone = document.getElementById('p_phone').value;
-
+        const gender = document.getElementById('p_gender').value;
         if (!name || !dob || !phone) {
             alert("Пожалуйста, заполните все поля!");
             return;
@@ -204,7 +204,7 @@
 
         const res = calculateTotal();
         const finalData = {
-            patient: { name, dob, phone },
+            patient: { name, dob, phone, gender },
             items: cart,
             analysis_ids: cart.map(i => i.id).join(", "),
             analysis_names: cart.map(i => i.name).join(", "),

@@ -2,102 +2,220 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedLab Price</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MedLab Booking</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 15px; background: #f4f7f9; }
-        .category-block { margin-bottom: 10px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .category-title { background: #0088cc; color: white; padding: 12px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; }
-        .items-list { display: none; background: white; }
-        .item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .item-info { flex: 1; padding-right: 10px; }
-        .item-name { font-size: 14px; font-weight: 500; }
-        .item-price { color: #0088cc; font-weight: bold; font-size: 14px; min-width: 60px; text-align: right; }
-        .btn-add { background: #e1f5fe; border: 1px solid #0088cc; color: #0088cc; padding: 6px 12px; border-radius: 6px; cursor: pointer; margin-left: 10px; }
+        :root { --primary: #0088cc; --secondary: #28a745; --bg: #f4f7f9; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: var(--bg); color: #333; }
+        
+        /* Headers */
+        .header { background: white; padding: 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { margin: 0; font-size: 18px; color: var(--primary); }
+
+        /* Catalog */
+        .container { padding: 15px; padding-bottom: 120px; }
+        .category-block { margin-bottom: 10px; background: white; border-radius: 10px; overflow: hidden; }
+        .category-title { padding: 15px; background: #e1f5fe; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; }
+        .items-list { display: none; }
+        .item { padding: 12px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .item-name { font-size: 14px; margin-bottom: 4px; }
+        .item-meta { font-size: 11px; color: #888; }
+        .price-tag { font-weight: bold; color: var(--primary); white-space: nowrap; }
+
+        /* Buttons */
+        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-left: 10px; }
+        .btn-add.in-cart { background: #ccc; }
+
+        /* Cart Panel */
+        .cart-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; box-shadow: 0 -3px 10px rgba(0,0,0,0.1); display: none; }
+        .cart-summary { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
+        .btn-checkout { background: var(--secondary); color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; }
+
+        /* Order Form */
+        #order-screen { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 100; padding: 20px; overflow-y: auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        .order-review { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+        .back-link { color: var(--primary); text-decoration: none; display: inline-block; margin-bottom: 15px; font-size: 14px; }
     </style>
 </head>
 <body>
 
-<div id="price-container">
+<div id="catalog-screen">
+    <div class="header">
+        <h2>🏥 Лабораторія: Прайс</h2>
     </div>
+    <div class="container" id="price-container"></div>
+    
+    <div class="cart-panel" id="cart-panel">
+        <div class="cart-summary">
+            <span>Обрано: <b id="cart-count">0</b></span>
+            <span>До сплати: <b id="cart-total">0</b> грн</span>
+        </div>
+        <button class="btn-checkout" onclick="openOrderForm()">ОФОРМИТИ ЗАМОВЛЕННЯ</button>
+    </div>
+</div>
+
+<div id="order-screen">
+    <a href="#" class="back-link" onclick="closeOrderForm()">← Повернутися до вибору</a>
+    <h2>📝 Дані пацієнта</h2>
+    <div class="order-review" id="order-review"></div>
+    
+    <div class="form-group">
+        <label>ПІБ пацієнта</label>
+        <input type="text" id="p_name" placeholder="Іванов Іван Іванович">
+    </div>
+    <div class="form-group">
+        <label>Дата народження</label>
+        <input type="date" id="p_dob">
+    </div>
+    <div class="form-group">
+        <label>Телефон</label>
+        <input type="tel" id="p_phone" placeholder="+380...">
+    </div>
+    
+    <button class="btn-checkout" onclick="submitFinalOrder()">ПІДТВЕРДИТИ ЗАМОВЛЕННЯ</button>
+</div>
 
 <script>
-    // 1. ВАШ МАСИВ ДАНИХ (ПРАЙС)
+    const SAMPLING_COST = 60;
+    let cart = [];
+
+    // БАЗА ДАНИХ (ПРАЙС)
     const priceList = [
         {
             category: "🩸 Загальноклінічні дослідження",
             items: [
-                { name: "Загальний аналіз крові (ЗАК)", price: 250 },
-                { name: "Аналіз сечі за Нечипоренком", price: 180 },
-                { name: "Група крові та резус-фактор", price: 300 }
+                { id: "101", name: "Загальний аналіз крові (ЗАК)", price: 250, bm: "Кров венозна" },
+                { id: "102", name: "Аналіз сечі за Нечипоренком", price: 180, bm: "Сеча" },
+                { id: "103", name: "Глюкоза крові", price: 150, bm: "Кров капілярна" }
             ]
         },
         {
             category: "🧪 Біохімічна панель",
             items: [
-                { name: "Глюкоза (цукор)", price: 150 },
-                { name: "АЛТ / АСТ (печінкові проби)", price: 210 },
-                { name: "Холестерин загальний", price: 160 }
-            ]
-        },
-        {
-            category: "🩺 Гормональні дослідження",
-            items: [
-                { name: "ТТГ (тиреотропний гормон)", price: 280 },
-                { name: "Т4 вільний", price: 280 }
+                { id: "201", name: "АЛТ / АСТ", price: 210, bm: "Кров венозна" },
+                { id: "202", name: "Білірубін загальний", price: 120, bm: "Кров венозна" },
+                { id: "203", name: "Креатинін", price: 130, bm: "Кров венозна" }
             ]
         }
     ];
 
-    // 2. ФУНКЦІЯ МАЛЮВАННЯ ПРАЙСУ
     function renderPrice() {
         const container = document.getElementById('price-container');
-        container.innerHTML = ''; // Очищуємо
-
-        priceList.forEach((cat, index) => {
-            let catHTML = `
+        priceList.forEach((cat, idx) => {
+            let html = `
                 <div class="category-block">
-                    <div class="category-title" onclick="toggleCat('cat-${index}')">
-                        ${cat.category} <span>▼</span>
-                    </div>
-                    <div id="cat-${index}" class="items-list">
+                    <div class="category-title" onclick="toggleCat('cat-${idx}')">${cat.category} <span>▼</span></div>
+                    <div id="cat-${idx}" class="items-list">
             `;
-
             cat.items.forEach(item => {
-                catHTML += `
+                html += `
                     <div class="item">
-                        <div class="item-info">
+                        <div>
                             <div class="item-name">${item.name}</div>
+                            <div class="item-meta">ID: ${item.id} | ${item.bm}</div>
                         </div>
-                        <div class="item-price">${item.price} грн</div>
-                        <button class="btn-add" onclick="order('${item.name}', ${item.price})">ОБРАТИ</button>
+                        <div style="display:flex; align-items:center;">
+                            <div class="price-tag">${item.price} ₴</div>
+                            <button class="btn-add" id="btn-${item.id}" onclick="toggleCart('${item.id}', '${item.name}', ${item.price}, '${item.bm}')">+</button>
+                        </div>
                     </div>
                 `;
             });
-
-            catHTML += `</div></div>`;
-            container.innerHTML += catHTML;
+            container.innerHTML += html + `</div></div>`;
         });
     }
 
-    // 3. ЛОГІКА ВІДКРИТТЯ КАТЕГОРІЙ
+    function toggleCart(id, name, price, bm) {
+        const idx = cart.findIndex(i => i.id === id);
+        const btn = document.getElementById('btn-' + id);
+        
+        if (idx > -1) {
+            cart.splice(idx, 1);
+            btn.innerText = '+';
+            btn.classList.remove('in-cart');
+        } else {
+            cart.push({ id, name, price, bm });
+            btn.innerText = '✓';
+            btn.classList.add('in-cart');
+        }
+        updateCartUI();
+    }
+
+    function calculateTotal() {
+        let itemsSum = cart.reduce((s, i) => s + i.price, 0);
+        let hasBlood = cart.some(i => i.bm.toLowerCase().includes("кров"));
+        return {
+            itemsSum: itemsSum,
+            sampling: hasBlood ? SAMPLING_COST : 0,
+            total: itemsSum + (hasBlood ? SAMPLING_COST : 0)
+        };
+    }
+
+    function updateCartUI() {
+        const panel = document.getElementById('cart-panel');
+        if (cart.length > 0) {
+            panel.style.display = 'block';
+            document.getElementById('cart-count').innerText = cart.length;
+            document.getElementById('cart-total').innerText = calculateTotal().total;
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    function openOrderForm() {
+        document.getElementById('catalog-screen').style.display = 'none';
+        document.getElementById('order-screen').style.display = 'block';
+        
+        const res = calculateTotal();
+        let reviewHtml = `<b>Обрані тести:</b><br>`;
+        cart.forEach(i => reviewHtml += `- ${i.name} (${i.price} ₴)<br>`);
+        if (res.sampling > 0) reviewHtml += `<br><b>Взяття б/м:</b> ${res.sampling} ₴`;
+        reviewHtml += `<br><br><b>РАЗОМ: ${res.total} ₴</b>`;
+        
+        document.getElementById('order-review').innerHTML = reviewHtml;
+    }
+
+    function closeOrderForm() {
+        document.getElementById('catalog-screen').style.display = 'block';
+        document.getElementById('order-screen').style.display = 'none';
+    }
+
+    function submitFinalOrder() {
+        const name = document.getElementById('p_name').value;
+        const dob = document.getElementById('p_dob').value;
+        const phone = document.getElementById('p_phone').value;
+
+        if (!name || !dob || !phone) {
+            alert("Пожалуйста, заполните все поля!");
+            return;
+        }
+
+        const res = calculateTotal();
+        const finalData = {
+            patient: { name, dob, phone },
+            items: cart,
+            analysis_ids: cart.map(i => i.id).join(", "),
+            analysis_names: cart.map(i => i.name).join(", "),
+            total_price: res.total,
+            sampling_included: res.sampling > 0
+        };
+
+        Telegram.WebApp.sendData(JSON.stringify(finalData));
+        Telegram.WebApp.close();
+    }
+
+    renderPrice();
+    Telegram.WebApp.expand();
+    toggleCat('cat-0'); // Відкрити першу категорію для зручності
+    
     function toggleCat(id) {
         const el = document.getElementById(id);
         el.style.display = (el.style.display === 'block') ? 'none' : 'block';
     }
-
-    // 4. ВІДПРАВКА В БОТ
-    let tg = window.Telegram.WebApp;
-    function order(name, price) {
-        tg.sendData(JSON.stringify({ analysis: name, price: price }));
-        tg.close();
-    }
-
-    // Запускаємо малювання при завантаженні сторінки
-    renderPrice();
-    tg.expand();
 </script>
-
 </body>
 </html>

@@ -3,54 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedLab Mini App</title>
+    <title>MedLab Price</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
-        .price { font-weight: bold; color: #0088cc; }
-        button { background: #0088cc; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:active { transform: scale(0.95); }
+        body { font-family: sans-serif; margin: 0; padding: 15px; background: #f4f7f9; }
+        .category-block { margin-bottom: 10px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .category-title { background: #0088cc; color: white; padding: 12px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; }
+        .items-list { display: none; background: white; }
+        .item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .item-info { flex: 1; padding-right: 10px; }
+        .item-name { font-size: 14px; font-weight: 500; }
+        .item-price { color: #0088cc; font-weight: bold; font-size: 14px; min-width: 60px; text-align: right; }
+        .btn-add { background: #e1f5fe; border: 1px solid #0088cc; color: #0088cc; padding: 6px 12px; border-radius: 6px; cursor: pointer; margin-left: 10px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>🏥 Оберіть аналізи</h2>
-        <p>Натисніть на кнопку, щоб додати у замовлення</p>
+
+<div id="price-container">
     </div>
 
-    <div class="card">
-        <div>
-            <strong>Загальний аналіз крові</strong><br>
-            <small>Термін: 1 день</small>
-        </div>
-        <div class="price">250 грн</div>
-        <button onclick="sendAnalysis('Загальний аналіз крові', 250)">Обрати</button>
-    </div>
-
-    <div class="card">
-        <div>
-            <strong>Біохімія (6 показників)</strong><br>
-            <small>Термін: 1-2 дні</small>
-        </div>
-        <div class="price">480 грн</div>
-        <button onclick="sendAnalysis('Біохімія', 480)">Обрати</button>
-    </div>
-
-    <script>
-        let tg = window.Telegram.WebApp;
-        tg.expand(); // Розгортаємо вікно на максимум
-
-        function sendAnalysis(name, price) {
-            // Ця функція відправляє дані назад у бот
-            const data = JSON.stringify({
-                analysis: name,
-                price: price
-            });
-            tg.sendData(data); // Відправляємо рядок боту
-            tg.close(); // Закриваємо додаток
+<script>
+    // 1. ВАШ МАСИВ ДАНИХ (ПРАЙС)
+    const priceList = [
+        {
+            category: "🩸 Загальноклінічні дослідження",
+            items: [
+                { name: "Загальний аналіз крові (ЗАК)", price: 250 },
+                { name: "Аналіз сечі за Нечипоренком", price: 180 },
+                { name: "Група крові та резус-фактор", price: 300 }
+            ]
+        },
+        {
+            category: "🧪 Біохімічна панель",
+            items: [
+                { name: "Глюкоза (цукор)", price: 150 },
+                { name: "АЛТ / АСТ (печінкові проби)", price: 210 },
+                { name: "Холестерин загальний", price: 160 }
+            ]
+        },
+        {
+            category: "🩺 Гормональні дослідження",
+            items: [
+                { name: "ТТГ (тиреотропний гормон)", price: 280 },
+                { name: "Т4 вільний", price: 280 }
+            ]
         }
-    </script>
+    ];
+
+    // 2. ФУНКЦІЯ МАЛЮВАННЯ ПРАЙСУ
+    function renderPrice() {
+        const container = document.getElementById('price-container');
+        container.innerHTML = ''; // Очищуємо
+
+        priceList.forEach((cat, index) => {
+            let catHTML = `
+                <div class="category-block">
+                    <div class="category-title" onclick="toggleCat('cat-${index}')">
+                        ${cat.category} <span>▼</span>
+                    </div>
+                    <div id="cat-${index}" class="items-list">
+            `;
+
+            cat.items.forEach(item => {
+                catHTML += `
+                    <div class="item">
+                        <div class="item-info">
+                            <div class="item-name">${item.name}</div>
+                        </div>
+                        <div class="item-price">${item.price} грн</div>
+                        <button class="btn-add" onclick="order('${item.name}', ${item.price})">ОБРАТИ</button>
+                    </div>
+                `;
+            });
+
+            catHTML += `</div></div>`;
+            container.innerHTML += catHTML;
+        });
+    }
+
+    // 3. ЛОГІКА ВІДКРИТТЯ КАТЕГОРІЙ
+    function toggleCat(id) {
+        const el = document.getElementById(id);
+        el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    }
+
+    // 4. ВІДПРАВКА В БОТ
+    let tg = window.Telegram.WebApp;
+    function order(name, price) {
+        tg.sendData(JSON.stringify({ analysis: name, price: price }));
+        tg.close();
+    }
+
+    // Запускаємо малювання при завантаженні сторінки
+    renderPrice();
+    tg.expand();
+</script>
+
 </body>
 </html>

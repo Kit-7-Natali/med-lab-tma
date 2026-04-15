@@ -24,21 +24,24 @@
         .price-tag { font-weight: bold; color: var(--primary); white-space: nowrap; }
 
         /* Buttons */
-        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-left: 10px; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-left: 10px; cursor: pointer; }
         .btn-add.in-cart { background: #ccc; }
+        .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Cart Panel */
         .cart-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; box-shadow: 0 -3px 10px rgba(0,0,0,0.1); display: none; }
         .cart-summary { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
-        .btn-checkout { background: var(--secondary); color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; }
+        .btn-checkout { background: var(--secondary); color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .btn-checkout:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Order Form */
         #order-screen { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 100; padding: 20px; overflow-y: auto; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: bold; }
-        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
         .order-review { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
-        .back-link { color: var(--primary); text-decoration: none; display: inline-block; margin-bottom: 15px; font-size: 14px; }
+        .back-link { color: var(--primary); text-decoration: none; display: inline-block; margin-bottom: 15px; font-size: 14px; cursor: pointer; }
+        .error { color: red; font-size: 12px; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -59,29 +62,35 @@
 </div>
 
 <div id="order-screen">
-    <a href="#" class="back-link" onclick="closeOrderForm()">← Повернутися до вибору</a>
+    <a class="back-link" onclick="closeOrderForm()">← Повернутися до вибору</a>
     <h2>📝 Дані пацієнта</h2>
     <div class="order-review" id="order-review"></div>
     
     <div class="form-group">
-    <label>Стать</label>
-    <select id="p_gender" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px;">
-        <option value="Не вказано">Оберіть стать...</option>
-        <option value="Чоловіча">Чоловіча</option>
-        <option value="Жіноча">Жіноча</option>
-    </select>
-</div>
+        <label>Стать</label>
+        <select id="p_gender" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px;">
+            <option value="Не вказано">Оберіть стать...</option>
+            <option value="Чоловіча">Чоловіча</option>
+            <option value="Жіноча">Жіноча</option>
+        </select>
+    </div>
+    
     <div class="form-group">
         <label>ПІБ пацієнта</label>
         <input type="text" id="p_name" placeholder="Іванов Іван Іванович">
+        <div class="error" id="error-name"></div>
     </div>
+    
     <div class="form-group">
         <label>Дата народження</label>
         <input type="date" id="p_dob">
+        <div class="error" id="error-dob"></div>
     </div>
+    
     <div class="form-group">
         <label>Телефон</label>
         <input type="tel" id="p_phone" placeholder="+380...">
+        <div class="error" id="error-phone"></div>
     </div>
     
     <button class="btn-checkout" onclick="submitFinalOrder()">ПІДТВЕРДИТИ ЗАМОВЛЕННЯ</button>
@@ -175,6 +184,12 @@
     }
 
     function openOrderForm() {
+        // ✅ ПЕРЕВІРКА НА ПУСТИЙ КОШИК
+        if (cart.length === 0) {
+            alert("Обріть хоча б один аналіз!");
+            return;
+        }
+
         document.getElementById('catalog-screen').style.display = 'none';
         document.getElementById('order-screen').style.display = 'block';
         
@@ -190,35 +205,100 @@
     function closeOrderForm() {
         document.getElementById('catalog-screen').style.display = 'block';
         document.getElementById('order-screen').style.display = 'none';
+        clearErrors();
     }
 
+    // ✅ ВАЛІДАЦІЯ
+    function validateForm(name, dob, phone, gender) {
+        let isValid = true;
+        clearErrors();
+
+        if (!name || name.trim().length < 3) {
+            document.getElementById('error-name').innerText = "Введіть повне ім'я (мін. 3 символи)";
+            isValid = false;
+        }
+
+        if (!dob) {
+            document.getElementById('error-dob').innerText = "Виберіть дату народження";
+            isValid = false;
+        } else {
+            const dobDate = new Date(dob);
+            const today = new Date();
+            const age = today.getFullYear() - dobDate.getFullYear();
+            if (age < 0 || age > 120) {
+                document.getElementById('error-dob').innerText = "Введіть коректну дату";
+                isValid = false;
+            }
+        }
+
+        if (!phone || !/^\+?380\d{9}$/.test(phone.replace(/\D/g, '380'))) {
+            document.getElementById('error-phone').innerText = "Введіть коректний номер (приклад: +380501234567)";
+            isValid = false;
+        }
+
+        if (gender === "Не вказано") {
+            alert("Виберіть стать!");
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    function clearErrors() {
+        document.getElementById('error-name').innerText = '';
+        document.getElementById('error-dob').innerText = '';
+        document.getElementById('error-phone').innerText = '';
+    }
+
+    // ✅ ВИПРАВЛЕНА ФУНКЦІЯ БЕЗ ДУБЛЮВАННЯ
     function submitFinalOrder() {
+        const btn = document.querySelector("#order-screen .btn-checkout");
+        
+        if (btn.disabled) return; 
+
         const name = document.getElementById('p_name').value;
         const dob = document.getElementById('p_dob').value;
         const phone = document.getElementById('p_phone').value;
         const gender = document.getElementById('p_gender').value;
-        if (!name || !dob || !phone) {
-            alert("Пожалуйста, заполните все поля!");
+
+        // ✅ ВАЛІДАЦІЯ
+        if (!validateForm(name, dob, phone, gender)) {
             return;
         }
+
+        // ✅ БЛОКУЄМО КНОПКУ
+        btn.disabled = true;
+        btn.innerText = "Відправка...";
+        btn.style.opacity = "0.5";
 
         const res = calculateTotal();
         const finalData = {
             patient: { name, dob, phone, gender },
-            items: cart,
             analysis_ids: cart.map(i => i.id).join(", "),
             analysis_names: cart.map(i => i.name).join(", "),
-            total_price: res.total,
-            sampling_included: res.sampling > 0
+            total_price: res.total
         };
 
-        Telegram.WebApp.sendData(JSON.stringify(finalData));
-        Telegram.WebApp.close();
+        try {
+            Telegram.WebApp.sendData(JSON.stringify(finalData));
+            
+            // ✅ ЗАКРИВАЄМО ЧЕРЕЗ ПАУЗУ
+            setTimeout(() => {
+                Telegram.WebApp.close();
+            }, 500);
+        } catch (error) {
+            console.error("Помилка відправки:", error);
+            btn.disabled = false;
+            btn.innerText = "ПІДТВЕРДИТИ ЗАМОВЛЕННЯ";
+            btn.style.opacity = "1";
+            alert("⚠️ Помилка відправки даних. Спробуйте ще раз.");
+        }
     }
 
+    // ✅ ІНІЦІАЛІЗАЦІЯ
     renderPrice();
     Telegram.WebApp.expand();
-    toggleCat('cat-0'); // Відкрити першу категорію для зручності
+    toggleCat('cat-0');
     
     function toggleCat(id) {
         const el = document.getElementById(id);

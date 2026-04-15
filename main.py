@@ -1,6 +1,7 @@
 import time
 import json
 import requests
+import asyncio
 from aiogram import types, F, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from aiogram.filters import Command
@@ -12,7 +13,7 @@ dp = Dispatcher()
 
 def get_main_menu():
     buttons = [
-        [KeyboardButton(text="🏥 Обрати аналізи", web_app=WebAppInfo(url=WEB_APP_URL))],  # ✅ WEB_APP_URL
+        [KeyboardButton(text="🏥 Обрати аналізи", web_app=WebAppInfo(url=WEB_APP_URL))],
         [KeyboardButton(text="📱 Поділитися контактом", request_contact=True)],
         [KeyboardButton(text="📋 Мої замовлення"), KeyboardButton(text="🕒 Графік роботи")],
         [KeyboardButton(text="👩‍💻 Зв'язатися з адміністратором")]
@@ -20,7 +21,17 @@ def get_main_menu():
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 
-@dp.message(F.text == "📋 Мої замовлення")
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    await message.answer(
+        "👋 Вітаємо в **MedLab!**\n\n"
+        "Оберіть дію з меню нижче:",
+        reply_markup=get_main_menu(),
+        parse_mode="Markdown"
+    )
+
+
+@dp.message(F.text == "📋 Мої за��овлення")
 async def show_my_orders(message: types.Message):
     username = message.from_user.username
     if not username:
@@ -30,14 +41,12 @@ async def show_my_orders(message: types.Message):
     await message.answer("🔍 Шукаю ваші замовлення, зачекайте...")
 
     try:
-        # ✅ ДОДАН TIMEOUT
         response = requests.get(f"{GOOGLE_URL}?username={username}", timeout=10)
         
         if response.status_code != 200:
             await message.answer("❌ Не вдалося отримати дані з бази.")
             return
 
-        # ✅ ОБРОБКА JSON ПОМИЛОК
         try:
             orders_data = response.json()
         except json.JSONDecodeError:
@@ -50,7 +59,6 @@ async def show_my_orders(message: types.Message):
 
         text = "📂 **Ваші останні замовлення:**\n\n"
         for order in orders_data:
-            # ✅ БЕЗПЕЧНИЙ ДОСТУП З .get()
             text += (
                 f"🔸 **№{order.get('number', 'N/A')}** ({order.get('date', 'N/A')})\n"
                 f"🧪 {order.get('tests', 'N/A')}\n"
@@ -61,37 +69,31 @@ async def show_my_orders(message: types.Message):
         await message.answer(text, parse_mode="Markdown")
         
     except requests.RequestException as e:
-        # ✅ ОБРОБКА МЕРЕЖЕВИХ ПОМИЛОК
         print(f"Network error: {e}")
         await message.answer("❌ Помилка мережи. Спробуйте пізніше.")
     except Exception as e:
         print(f"Error fetching orders: {e}")
-        await message.answer("⚠️ Помилка з��'язку з базою даних.")
+        await message.answer("⚠️ Помилка зв'язку з базою даних.")
 
 
 @dp.message(F.web_app_data)
 async def handle_web_app_data(message: types.Message):
     try:
-        # Розпаковуємо дані
         raw_data = message.web_app_data.data
         order = json.loads(raw_data)
         
-        # ГЕНЕРУЄМО НОМЕР ЗАМОВЛЕННЯ
         order_number = f"ORD-{int(time.time())}"
         
-        # Дістаємо дані БЕЗПЕЧНО (через .get)
         patient = order.get('patient', {})
         p_name = patient.get('name', 'Не вказано')
         p_dob = patient.get('dob', 'Не вказано')
         p_gender = patient.get('gender', 'Не вказано')
         p_phone = patient.get('phone', 'Не вказано')
         
-        # Отримуємо назви та ID
         analysis_ids = order.get('analysis_ids', '—')
         analysis_names = order.get('analysis_names', '—')
         total_price = order.get('total_price', 0)
         
-        # Дані для Google
         data_for_google = {
             "order_number": order_number,
             "p_name": p_name,
@@ -104,7 +106,6 @@ async def handle_web_app_data(message: types.Message):
             "username": message.from_user.username or "NoName"
         }
 
-        # ✅ ОБРОБКА МЕРЕЖЕВИХ ПОМИЛОК
         try:
             response = requests.post(GOOGLE_URL, json=data_for_google, timeout=10)
         except requests.RequestException as e:
@@ -112,7 +113,6 @@ async def handle_web_app_data(message: types.Message):
             await message.answer("❌ Помилка надсилання даних. Спробуйте пізніше.")
             return
         
-        # ✅ ПЕРЕВІРКА ОБОХ СТАТУСІВ
         if response.status_code in (200, 201):
             text = (
                 f"✅ **Замовлення №{order_number} прийнято!**\n\n"
@@ -131,3 +131,26 @@ async def handle_web_app_data(message: types.Message):
     except Exception as e:
         print(f"Error: {e}") 
         await message.answer("⚠️ Помилка обробки даних. Перевірте заповнення форми.")
+
+
+@dp.message()
+async def echo(message: types.Message):
+    """Обробка інших повідомлень"""
+    await message.answer(
+        "Вибачте, я не розумію цю команду.\n\n"
+        "Використовуйте меню нижче 👇",
+        reply_markup=get_main_menu()
+    )
+
+
+# ✅ ОСНОВНА ФУНКЦІЯ ДЛЯ ЗАПУСКУ
+async def main():
+    print("🤖 Бот запускається...")
+    await dp.start_polling(bot)
+
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n⛔ Бот зупинений користувачем")

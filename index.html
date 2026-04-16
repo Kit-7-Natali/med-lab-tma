@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MedLab Booking</title>
+    <title>CentroLab Booking</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --primary: #0088cc; --secondary: #28a745; --bg: #f4f7f9; }
@@ -42,13 +42,43 @@
         .order-review { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
         .back-link { color: var(--primary); text-decoration: none; display: inline-block; margin-bottom: 15px; font-size: 14px; cursor: pointer; }
         .error { color: red; font-size: 12px; margin-top: 5px; }
+
+        /* Payment Options */
+        .payment-section { background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107; }
+        .payment-options { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .payment-btn { 
+            flex: 1; 
+            min-width: 120px;
+            padding: 12px; 
+            border: 2px solid #ccc; 
+            border-radius: 6px; 
+            background: white; 
+            cursor: pointer; 
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .payment-btn.selected { 
+            border-color: var(--primary); 
+            background: #e1f5fe; 
+            color: var(--primary);
+        }
+        .payment-btn:hover { border-color: var(--primary); }
+
+        .success-message { 
+            background: #d4edda; 
+            color: #155724; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin-bottom: 15px;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
 <div id="catalog-screen">
     <div class="header">
-        <h2>🏥 Лабораторія: Прайс</h2>
+        <h2>🏥 CentroLab: Прайс</h2>
     </div>
     <div class="container" id="price-container"></div>
     
@@ -68,7 +98,7 @@
     
     <div class="form-group">
         <label>Стать</label>
-        <select id="p_gender" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px;">
+        <select id="p_gender">
             <option value="Не вказано">Оберіть стать...</option>
             <option value="Чоловіча">Чоловіча</option>
             <option value="Жіноча">Жіноча</option>
@@ -89,8 +119,30 @@
     
     <div class="form-group">
         <label>Телефон</label>
-        <input type="tel" id="p_phone" placeholder="+380...">
+        <input type="tel" id="p_phone" placeholder="+380501234567">
         <div class="error" id="error-phone"></div>
+    </div>
+
+    <!-- ✅ НОВА СЕКЦІЯ ОПЛАТИ -->
+    <div class="payment-section">
+        <h3 style="margin-top: 0; color: #333;">💳 Спосіб оплати</h3>
+        <p style="font-size: 12px; margin: 5px 0;">Виберіть як ви бажаєте оплатити:</p>
+        <div class="payment-options">
+            <button class="payment-btn" onclick="selectPayment('office')">
+                🏢 У відділенні
+            </button>
+            <button class="payment-btn" onclick="selectPayment('card')">
+                💳 Онлайн картою
+            </button>
+        </div>
+        <div class="error" id="error-payment"></div>
+    </div>
+
+    <input type="hidden" id="payment_method" value="">
+
+    <!-- ✅ ПОВІДОМЛЕННЯ ПРО УСПІХ -->
+    <div class="success-message" id="success-message">
+        ✅ Замовлення успішно оформлено! Почекайте поки закриється вікно...
     </div>
     
     <button class="btn-checkout" onclick="submitFinalOrder()">ПІДТВЕРДИТИ ЗАМОВЛЕННЯ</button>
@@ -99,6 +151,8 @@
 <script>
     const SAMPLING_COST = 60;
     let cart = [];
+    let savedPhone = '';
+    let selectedPayment = '';
 
     // БАЗА ДАНИХ (ПРАЙС)
     const priceList = [
@@ -184,7 +238,6 @@
     }
 
     function openOrderForm() {
-        // ✅ ПЕРЕВІРКА НА ПУСТИЙ КОШИК
         if (cart.length === 0) {
             alert("Обріть хоча б один аналіз!");
             return;
@@ -193,6 +246,8 @@
         document.getElementById('catalog-screen').style.display = 'none';
         document.getElementById('order-screen').style.display = 'block';
         
+        document.getElementById('p_phone').value = savedPhone;
+        
         const res = calculateTotal();
         let reviewHtml = `<b>Обрані тести:</b><br>`;
         cart.forEach(i => reviewHtml += `- ${i.name} (${i.price} ₴)<br>`);
@@ -200,57 +255,70 @@
         reviewHtml += `<br><br><b>РАЗОМ: ${res.total} ₴</b>`;
         
         document.getElementById('order-review').innerHTML = reviewHtml;
+        selectedPayment = ''; // Скидаємо вибір оплати
     }
 
     function closeOrderForm() {
         document.getElementById('catalog-screen').style.display = 'block';
         document.getElementById('order-screen').style.display = 'none';
         clearErrors();
+        document.getElementById('success-message').style.display = 'none';
     }
 
-    // ✅ ВАЛІДАЦІЯ
+    // ✅ ВИБІР СПОСОБУ ОПЛАТИ
+    function selectPayment(method) {
+        selectedPayment = method;
+        document.getElementById('payment_method').value = method;
+        document.getElementById('error-payment').innerText = '';
+        
+        // Оновляємо стиль кнопок
+        document.querySelectorAll('.payment-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        event.target.closest('.payment-btn').classList.add('selected');
+    }
+
     function validateForm(name, dob, phone, gender) {
-        let isValid = true;
-        clearErrors();
+    let isValid = true;
+    clearErrors();
 
-        if (!name || name.trim().length < 3) {
-            document.getElementById('error-name').innerText = "Введіть повне ім'я (мін. 3 символи)";
-            isValid = false;
-        }
-
-        if (!dob) {
-            document.getElementById('error-dob').innerText = "Виберіть дату народження";
-            isValid = false;
-        } else {
-            const dobDate = new Date(dob);
-            const today = new Date();
-            const age = today.getFullYear() - dobDate.getFullYear();
-            if (age < 0 || age > 120) {
-                document.getElementById('error-dob').innerText = "Введіть коректну дату";
-                isValid = false;
-            }
-        }
-
-        if (!phone || !/^\+?380\d{9}$/.test(phone.replace(/\D/g, '380'))) {
-            document.getElementById('error-phone').innerText = "Введіть коректний номер (приклад: +380501234567)";
-            isValid = false;
-        }
-
-        if (gender === "Не вказано") {
-            alert("Виберіть стать!");
-            isValid = false;
-        }
-
-        return isValid;
+    if (!name || name.trim().length < 3) {
+        document.getElementById('error-name').innerText = "Введіть повне ім'я (мін. 3 символи)";
+        isValid = false;
     }
+
+    // ✅ ВИДАЛЕНО ПЕРЕВІРКУ ДАТИ - вводиться через календар!
+    if (!dob) {
+        document.getElementById('error-dob').innerText = "Виберіть дату народження";
+        isValid = false;
+    }
+
+    if (phone && !/^\+?380\d{9}$/.test(phone.replace(/\D/g, '380'))) {
+        document.getElementById('error-phone').innerText = "Введіть коректний номер";
+        isValid = false;
+    }
+
+    if (gender === "Не вказано") {
+        alert("Виберіть стать!");
+        isValid = false;
+    }
+
+    // ✅ ПЕРЕВІРКА СПОСОБУ ОПЛАТИ
+    if (!selectedPayment) {
+        document.getElementById('error-payment').innerText = "⚠️ Виберіть спосіб оплати";
+        isValid = false;
+    }
+
+    return isValid;
 
     function clearErrors() {
         document.getElementById('error-name').innerText = '';
         document.getElementById('error-dob').innerText = '';
         document.getElementById('error-phone').innerText = '';
+        document.getElementById('error-payment').innerText = '';
     }
 
-    // ✅ ВИПРАВЛЕНА ФУНКЦІЯ БЕЗ ДУБЛЮВАННЯ
+    // ✅ ВІДПРАВКА ЗАМОВЛЕННЯ
     function submitFinalOrder() {
         const btn = document.querySelector("#order-screen .btn-checkout");
         
@@ -261,12 +329,10 @@
         const phone = document.getElementById('p_phone').value;
         const gender = document.getElementById('p_gender').value;
 
-        // ✅ ВАЛІДАЦІЯ
         if (!validateForm(name, dob, phone, gender)) {
             return;
         }
 
-        // ✅ БЛОКУЄМО КНОПКУ
         btn.disabled = true;
         btn.innerText = "Відправка...";
         btn.style.opacity = "0.5";
@@ -276,16 +342,20 @@
             patient: { name, dob, phone, gender },
             analysis_ids: cart.map(i => i.id).join(", "),
             analysis_names: cart.map(i => i.name).join(", "),
-            total_price: res.total
+            total_price: res.total,
+            payment_method: selectedPayment // ✅ ДОБАВЛЯЄМО СПОСІБ ОПЛАТИ
         };
 
         try {
             Telegram.WebApp.sendData(JSON.stringify(finalData));
             
-            // ✅ ЗАКРИВАЄМО ЧЕРЕЗ ПАУЗУ
+            // ✅ ПОКАЗУЄМО УСПІХ
+            document.getElementById('success-message').style.display = 'block';
+            btn.style.display = 'none';
+            
             setTimeout(() => {
                 Telegram.WebApp.close();
-            }, 500);
+            }, 2000);
         } catch (error) {
             console.error("Помилка відправки:", error);
             btn.disabled = false;
@@ -295,7 +365,17 @@
         }
     }
 
-    // ✅ ІНІЦІАЛІЗАЦІЯ
+    window.addEventListener('load', function() {
+        if (window.Telegram && window.Telegram.WebApp) {
+            const webApp = window.Telegram.WebApp;
+            const initData = new URLSearchParams(webApp.initData);
+            const phone = initData.get('phone');
+            if (phone) {
+                savedPhone = phone;
+            }
+        }
+    });
+
     renderPrice();
     Telegram.WebApp.expand();
     toggleCat('cat-0');

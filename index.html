@@ -233,33 +233,57 @@
             isValid = false;
         }
         return isValid;
-    }
+    
+function submitFinalOrder() {
+    const btn = document.querySelector(".btn-checkout"); // Перевірте, чи такий клас у вашої кнопки
+    const name = document.getElementById('p_name').value;
+    const dob = document.getElementById('p_dob').value;
+    const phone = document.getElementById('p_phone').value;
+    const gender = document.getElementById('p_gender').value;
 
-    function submitFinalOrder() {
-        const btn = document.getElementById('submit-btn');
-        const name = document.getElementById('p_name').value;
-        const dob = document.getElementById('p_dob').value;
-        const phone = document.getElementById('p_phone').value;
-        const gender = document.getElementById('p_gender').value;
+    // Валідація
+    if (!validateForm(name, dob, phone, gender)) return;
 
-        if (!validateForm(name, dob, phone, gender)) return;
-
+    if (btn) {
         btn.disabled = true;
         btn.innerText = "Відправка...";
-
-        const res = calculateTotal();
-        const finalData = {
-            patient: { name, dob, phone, gender },
-            analysis_ids: cart.map(i => i.id).join(", "),
-            analysis_names: cart.map(i => i.name).join(", "),
-            total_price: res.total,
-            payment_method: selectedPayment
-        };
-
-        Telegram.WebApp.sendData(JSON.stringify(finalData));
-        document.getElementById('success-message').style.display = 'block';
-        setTimeout(() => Telegram.WebApp.close(), 2000);
     }
+
+    const res = calculateTotal();
+    
+    // Створюємо ПЛОСКУ структуру (без вкладеності patient)
+    // Назви ключів мають бути ТАКІ Ж, як у Python: data.get('p_name')
+    const finalData = {
+        p_name: name,
+        p_dob: dob,
+        p_phone: phone,
+        p_gender: gender,
+        analysis_ids: cart.map(i => i.id).join(", "),
+        analysis_names: cart.map(i => i.name).join(", "),
+        total_price: res.total,
+        payment_method: selectedPayment
+    };
+
+    try {
+        // Відправляємо рядок JSON
+        Telegram.WebApp.sendData(JSON.stringify(finalData));
+        
+        document.getElementById('success-message').style.display = 'block';
+        
+        setTimeout(() => {
+            Telegram.WebApp.close();
+        }, 2000);
+    } catch (error) {
+        console.error("Помилка відправки:", error);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "ПІДТВЕРДИТИ ЗАМОВЛЕННЯ";
+        }
+        alert("⚠️ Помилка Telegram WebApp");
+    }
+}
+    
+    
 
     function toggleCat(id) {
         const el = document.getElementById(id);
